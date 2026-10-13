@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
@@ -21,27 +22,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.min
 
-/** The Home glow's height, in dp: `HomeView.swift` draws `ambient` as a 1100 pt band. */
 private const val AMBIENT_BAND_DP = 1100f
-
-/** The colour's fade when a new hero comes in: iOS uses `easeInOut(duration: 0.9)`. */
 private const val AMBIENT_FADE_MILLIS = 900
-
 private val AMBIENT_EASE = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
-/** The Home glow's reach on the wide layout. The mockup's glow runs further right than iOS draws it, so this adds reach. */
 object AmbientTuning {
-    /** How far, in dp from the feed's left edge, the extra horizontal fade runs. */
     const val WIDE_REACH_DP = 900f
-
-    /** Its strength at the left edge. The vertical glow is unchanged. */
     const val WIDE_REACH_ALPHA = 0.35f
 }
 
-/**
- * iOS's tuning of a hero's colour (`ImagePipeline.averageColor`): the hue is kept, the saturation is raised a little, and
- * the brightness is held between 0.35 and 0.62, so the glow is never black and never glares.
- */
 object AmbientTone {
     const val MIN_BRIGHTNESS = 0.35f
     const val MAX_BRIGHTNESS = 0.62f
@@ -54,7 +43,6 @@ object AmbientTone {
     }
 }
 
-/** The average colour of an image: a 24 x 24 grid of its pixels, each counted the same, as iOS averages a small thumbnail. */
 fun ImageBitmap.averageColor(): Color? {
     val w = width
     val h = height
@@ -80,10 +68,6 @@ fun ImageBitmap.averageColor(): Color? {
 
 private val ambientCache = HashMap<String, Color>()
 
-/**
- * The glow colour of the hero image at [url]: the image's average, tuned as iOS tunes it. It is the image the page draws, so
- * the colour matches the picture. Cached per URL; null when the image cannot be read.
- */
 suspend fun heroAmbientFor(http: Http, url: String): Color? {
     ambientCache[url]?.let { return it }
     val bitmap = ImageMemoryCache.get(url) ?: loadRemoteBitmap(http, url) ?: return null
@@ -92,12 +76,6 @@ suspend fun heroAmbientFor(http: Http, url: String): Color? {
     return tuned
 }
 
-/**
- * The Home glow, drawn as the background of the content that scrolls (iOS: `.background(alignment: .top) { ambient }` on
- * the rows): the glow colour at 70% from the top, 25% halfway, clear at the bottom of a 1100 dp band. Put it on the column
- * that holds the hero and the rows, so the glow moves with them. Until a hero's colour is known the accent is used.
- * [reachDp] (0 by default, the iOS glow alone) adds a horizontal fade from the left edge, so the glow reaches further right.
- */
 @Composable
 fun Modifier.attachedAmbient(reachDp: Float = 0f): Modifier {
     val shell = LocalAppEnv.current.shell
@@ -107,20 +85,21 @@ fun Modifier.attachedAmbient(reachDp: Float = 0f): Modifier {
         val band = min(size.height, AMBIENT_BAND_DP.dp.toPx())
         drawRect(
             brush = Brush.verticalGradient(
-                colors = listOf(glow.copy(alpha = 0.7f), glow.copy(alpha = 0.25f), Color.Transparent),
+                colors = listOf(glow.copy(alpha = 0.70f), glow.copy(alpha = 0.25f), Color.Transparent),
                 startY = 0f,
                 endY = band,
             ),
             size = Size(size.width, band),
         )
         if (reachDp > 0f) {
+            val reachPx = reachDp.dp.toPx()
             drawRect(
                 brush = Brush.horizontalGradient(
                     colors = listOf(glow.copy(alpha = AmbientTuning.WIDE_REACH_ALPHA), Color.Transparent),
                     startX = 0f,
-                    endX = reachDp.dp.toPx(),
+                    endX = reachPx,
                 ),
-                size = Size(size.width, band),
+                size = Size(reachPx, band),
             )
         }
     }

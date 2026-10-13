@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -21,9 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.BuiltinRows
@@ -35,7 +36,6 @@ import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalWideLayout
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.fillMaxWidth
 
 @Composable
 fun HomeScreen(
@@ -48,13 +48,11 @@ fun HomeScreen(
     val model = remember(env.data) { HomeModel(env.data) }
     val bottomInset = LocalBottomInset.current
 
-    // Rows are filtered by the active profile's content rules, so Home reloads when the profile changes.
     LaunchedEffect(env.data.profiles.activeID) {
         model.refresh(force = false)
     }
 
     if (isWide) {
-        // Desktop / iPad wide split layout (matches mockup). Scrolling or dragging the feed folds the hero and sidebar away.
         val fc = env.shell.feedCollapse
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
@@ -79,11 +77,14 @@ fun HomeScreen(
                                 rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
                                 Orientation.Vertical,
                             )
-                            .verticalScroll(scroll)
-                            .padding(top = 18.dp, bottom = bottomInset + 40.dp),
+                            .verticalScroll(scroll),
                     ) {
-                        // The pane's glow scrolls with its rows, as iOS draws it on the feed.
-                        Column(Modifier.fillMaxWidth().attachedAmbient(AmbientTuning.WIDE_REACH_DP), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .attachedAmbient(AmbientTuning.WIDE_REACH_DP)
+                                .padding(start = 14.dp, top = 18.dp, bottom = bottomInset + 40.dp),
+                            verticalArrangement = Arrangement.spacedBy(28.dp),
+                        ) {
                             FeedRows(model, onSelectTitle, onSeeAll)
                         }
                     }
@@ -91,7 +92,6 @@ fun HomeScreen(
             }
         }
     } else {
-        // Compact phone layout
         val scroll = rememberScrollState()
         Box(modifier.fillMaxSize()) {
             Column(
@@ -99,8 +99,10 @@ fun HomeScreen(
                     .verticalScroll(scroll)
                     .padding(bottom = bottomInset + 32.dp),
             ) {
-                // The glow sits behind the hero and the rows, so it scrolls with them.
-                Column(Modifier.fillMaxWidth().attachedAmbient(), verticalArrangement = Arrangement.spacedBy(26.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().attachedAmbient(),
+                    verticalArrangement = Arrangement.spacedBy(26.dp),
+                ) {
                     if (model.hero.isNotEmpty()) {
                         HeroCarousel(
                             items = model.hero,
@@ -135,12 +137,12 @@ private fun FeedRows(
         )
     }
 
-    // 2. Theme Row 0 (e.g. "Undead Obsessions")
+    // 2. Theme Row 0
     if (model.themes.isNotEmpty()) {
         ThemeCarousel(model.themes[0], { onSelectTitle(it, null, null) })
     }
 
-    // 3. Suggestions ("Because you watched...", "Trending Movies")
+    // 3. Suggestions
     val visibleSuggested = model.suggested.filter { !rules.isRowHidden(it.prefKey) }
     visibleSuggested.forEach { row ->
         CatalogRowView(
